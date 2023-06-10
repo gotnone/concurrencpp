@@ -41,6 +41,8 @@ namespace concurrencpp::details {
 
         const auto deadline = std::chrono::system_clock::now() + ms;
 
+        size_t polling_cycle = 0;
+
         while (true) {
             const auto val = atom.load(order);
             if (val != old) {
@@ -53,12 +55,29 @@ namespace concurrencpp::details {
                     return atomic_wait_status::ok;
                 }
 
-            	return atomic_wait_status::timeout;
+                return atomic_wait_status::timeout;
             }
 
-            const auto time_diff = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
-            assert(time_diff.count() >= 0);
-            atomic_wait_for_native(&atom, static_cast<int32_t>(old), time_diff);
+            if (polling_cycle < 64) {
+                std::this_thread::yield();
+                ++polling_cycle;
+                continue;
+            }
+
+            if (polling_cycle < 5'000) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                ++polling_cycle;
+                continue;
+            }
+
+            if (polling_cycle < 10'000) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                ++polling_cycle;
+                continue;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            ++polling_cycle;
         }
     }
 
