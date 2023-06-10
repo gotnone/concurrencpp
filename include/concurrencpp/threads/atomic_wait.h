@@ -3,6 +3,7 @@
 
 #include "concurrencpp/platform_defs.h"
 
+#include <thread>
 #include <atomic>
 #include <chrono>
 
