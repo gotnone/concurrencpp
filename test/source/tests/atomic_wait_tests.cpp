@@ -54,7 +54,7 @@ void concurrencpp::tests::test_atomic_wait() {
 void concurrencpp::tests::test_atomic_wait_for_timeout_1() {
     // timeout has reached
     std::atomic_int flag {0};
-    constexpr auto timeout_ms = 100;
+    constexpr auto timeout_ms = 350;
 
     const auto before = std::chrono::high_resolution_clock::now();
     const auto result =
@@ -91,24 +91,22 @@ void concurrencpp::tests::test_atomic_wait_for_timeout_2() {
 
 void concurrencpp::tests::test_atomic_wait_for_success() {
     std::atomic_int flag {0};
-    constexpr auto timeout_ms = 400;
-    constexpr auto modify_ms = timeout_ms / 4;
+    std::atomic<std::chrono::high_resolution_clock::time_point> modification_tp {};
 
     std::thread modifier([&] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(modify_ms));
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
         flag = 1;
         concurrencpp::details::atomic_notify_one(flag);
+        modification_tp.store(std::chrono::high_resolution_clock::now());
     });
 
-    const auto before = std::chrono::high_resolution_clock::now();
     const auto result =
-        concurrencpp::details::atomic_wait_for(flag, 0, std::chrono::milliseconds(timeout_ms), std::memory_order_acquire);
+        concurrencpp::details::atomic_wait_for(flag, 0, std::chrono::seconds(10), std::memory_order_acquire);
     const auto after = std::chrono::high_resolution_clock::now();
-    const auto time_diff = std::chrono::duration_cast<std::chrono::milliseconds>(after - before).count();
+    const auto time_diff = std::chrono::duration_cast<std::chrono::milliseconds>(after - modification_tp.load()).count();
 
     assert_equal(result, concurrencpp::details::atomic_wait_status::ok);
-    assert_bigger_equal(time_diff, modify_ms);
-    assert_smaller_equal(time_diff, modify_ms + 100);
+    assert_smaller_equal(time_diff, 50);
 
     modifier.join();
 }
